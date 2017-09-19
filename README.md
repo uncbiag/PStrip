@@ -22,16 +22,15 @@ Start virtualenv
 ```bash
 source ~/bin/activate
 ```
-**Download and Install Numpy**
-Follow https://scipy.org/install.html
-**Download and Install SimpleITK**
+**Download and Install Numpy**  
+Follow https://scipy.org/install.html  
+**Download and Install SimpleITK**  
 ```bash
 pip install SimpleITK
 ```
-**Download and Install CUDA (GPU is used for decompositions only)**
-**Download and Install niftyreg**
-http://cmictig.cs.ucl.ac.uk/wiki/index.php/NiftyReg_install
-In order to use the GPU, please set the CUDA_FLAG to on. (Currently all registration steps are using CPU only)
-
-**Download and Install pycuda**
-Follow https://wiki.tiker.net/PyCuda/Installation/Linux
+**Download and Install CUDA (GPU is used for decompositions only)**  
+**Download and Install niftyreg**  
+http://cmictig.cs.ucl.ac.uk/wiki/index.php/NiftyReg_install  
+In order to use the GPU, please set the CUDA_FLAG to on. (Currently all registration steps are using CPU only)  
+**Download and Install pycuda**  
+Follow https://wiki.tiker.net/PyCuda/Installation/Linux  
