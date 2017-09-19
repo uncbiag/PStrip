@@ -1,0 +1,5 @@
+*.pyc
+data/*
+tmp_res/*
+main_code/script*
+func_code/*.pyc
