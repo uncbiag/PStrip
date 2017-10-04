@@ -30,7 +30,7 @@ def performInitialization(argv):
     data_folder = os.path.join(root_folder, 'data')
     atlas_folder = os.path.join(data_folder, 'atlas')
     pca_folder = os.path.join(data_folder, 'pca')    
-    data_folder_basis = pca_folder + '/oasis_warped_pca_' + str(configure['num_of_normal_used'])
+    data_folder_basis = pca_folder + '/pca_' + str(configure['num_of_normal_used'])
 
     atlas_w_skull_name = atlas_folder + '/atlas_w_skull.nii'
     atlas_im_name = atlas_folder + '/atlas_wo_skull.nii'
