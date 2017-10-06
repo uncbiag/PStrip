@@ -11,9 +11,12 @@ from niftyreg import *
 def create_temp_image(image_path, temp_folder):
     print 'creating temp image'
     temp_image_file = temp_folder + '/temp_image.nii.gz'
+    if os.path.isfile(temp_image_file):
+        return
     # using float32
     image = sitk.Cast(sitk.ReadImage(image_path), sitk.sitkFloat32)
-    sitk.WriteImage(image, temp_image_file)
+    temp_image = sitk.RescaleIntensity(image1=image, outputMinimum=0, outputMaximum=1)
+    sitk.WriteImage(temp_image, temp_image_file)
     del image 
 
 def affine_to_atlas(atlas_wo_skull_file, atlas_w_skull_file, atlas_mask_file, temp_folder):
@@ -32,11 +35,13 @@ def affine_to_atlas(atlas_wo_skull_file, atlas_w_skull_file, atlas_mask_file, te
     affine_trans = temp_folder + '/affine_trans.txt'
     invaff_trans = temp_folder + '/affine_invtrans.txt'
 
+    if os.path.isfile(invaff_trans):
+        return
     affine_log = temp_folder + '/pre_affine.log'
     log = open(affine_log, 'w')
     cmd = ""
     # reg input -> atlas_w_skull, mask on atlas_w_skull
-    cmd += '\n' + nifty_reg_affine(ref=atlas_w_skull_file, flo=temp_image_file, res=affine_file1, aff=affine_trans1, symmetric=False, rmask=atlas_w_skull_file, init = 'cog')
+    cmd += '\n' + nifty_reg_affine(ref=atlas_w_skull_file, flo=temp_image_file, res=affine_file1, aff=affine_trans1, symmetric=False, init = 'cog')
     # reg affine output 1 -> atlas_wo_skull, mask on dilate
     cmd += '\n' + nifty_reg_affine(ref=atlas_wo_skull_file, flo=affine_file1, res=affine_file2, aff=affine_trans2, rmask=atlas_mask_file, symmetric=False)
     # composite trans
@@ -56,12 +61,14 @@ def bias_correction(atlas_erode_mask_file, temp_folder):
     # input/output file name
     affine_file = temp_folder + '/affine_output2.nii.gz'
     bias_file = temp_folder + '/bias_output.nii.gz'
-    
+    if os.path.isfile(bias_file):
+        return
+     
     # input image
     affine_img = sitk.ReadImage(affine_file)
     
     # rescale input image to [1, 1000], just to remove small and negative intensity
-    rescale_affine_img = sitk.RescaleIntensity(image1=affine_image, outputMinimum=1, outputMaximum=1000)
+    rescale_affine_img = sitk.RescaleIntensity(image1=affine_img, outputMinimum=1, outputMaximum=1000)
     mask_img = sitk.ReadImage(atlas_erode_mask_file)
     bias_img = sitk.N4BiasFieldCorrection(image=rescale_affine_img, maskImage=mask_img)
 
@@ -74,7 +81,9 @@ def intensity_normalization(atlas_erode_mask_file, temp_folder):
     # input/output file name
     bias_file = temp_folder + '/bias_output.nii.gz'
     norm_file = temp_folder + '/norm_output.nii.gz'
-
+    
+    if os.path.isfile(norm_file):
+        return
     bias_img = sitk.ReadImage(bias_file)
     bias_arr = sitk.GetArrayFromImage(bias_img)
     mask_img = sitk.ReadImage(atlas_erode_mask_file)
@@ -82,13 +91,13 @@ def intensity_normalization(atlas_erode_mask_file, temp_folder):
 
     # calculate 99th and 1st percentile
     intensities = bias_arr[np.where(mask_arr==1)]
-    i_99 = np.percentile(intensities, 99)
-    i_1 = np.percentile(intensities, 1)
+    i_max = np.percentile(intensities, 99)
+    i_min = np.percentile(intensities, 1)
     print 'i_max:', str(i_max), 'i_min:', i_min
-    # map i_99 -> 0.9, i_1 -> 0.1, affine tranform on intensities, then cutoff [0, 1]
+    # map i_max -> 0.9, i_min -> 0.1, affine tranform on intensities, then cutoff [0, 1]
     # y = a(x+b)
-    b = (i_99-9*i_1)/8
-    a = 0.8/(i_99-i_1)
+    b = (i_max-9*i_min)/8
+    a = 0.8/(i_max-i_min)
     norm_img_pre = sitk.ShiftScale(image1=bias_img, shift=b, scale=a)
 #    a = 0.8/(i_max-i_min)
 #    b = 0.1 - a*i_min
@@ -106,18 +115,21 @@ def histogram_matching(pca_mean_file, atlas_erode_mask_file, temp_folder):
     # input/output image
     norm_file = temp_folder + '/norm_output.nii.gz'
     match_file = temp_folder + '/match_output.nii.gz'
+    if os.path.isfile(match_file):
+        return
+    
     norm_img = sitk.ReadImage(norm_file)
     mask_img = sitk.ReadImage(atlas_erode_mask_file)   
-
+    
     # only match inside of erode mask
     norm_in_img = sitk.Mask(image=norm_img, maskImage=mask_img)
-    norm_out_img = sitk.MaskNegated(image=norm_img, maskImage=mask_img)
+    norm_out_img = sitk.MaskNegated(image=norm_img, maskImage=sitk.Cast(mask_img, norm_img.GetPixelID()))
     pca_mean_img = sitk.ReadImage(pca_mean_file)
  
     match_in_img = sitk.HistogramMatching(norm_in_img, pca_mean_img, numberOfHistogramLevels=1000)
     match_img = sitk.Add(match_in_img, norm_out_img)
     sitk.WriteImage(match_img, match_file)
-    del norm_img, mask_img, norm_in_img, norm_out_img, pca_mean_img, match_in_image, match_img
+    del norm_img, mask_img, norm_in_img, norm_out_img, pca_mean_img, match_in_img, match_img
 
 
 
