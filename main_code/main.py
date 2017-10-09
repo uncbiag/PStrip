@@ -111,7 +111,7 @@ def createCompDisp(current_folder, configure):
     cmd += '\n' + nifty_reg_transform(ref=atlas_im_name,disp1=affine_def, disp2=affine_disp)
     cmd += '\n' + nifty_reg_transform(ref=atlas_im_name, ref2=atlas_im_name, comp1=current_comp_disp, comp2=affine_disp, comp3=final_disp)
     cmd += '\n' + nifty_reg_transform(ref=atlas_im_name, invNrr1=final_disp, invNrr2=temp_image, invNrr3=final_inv_disp)
-    logFile = open('final.log', 'w')
+    logFile = open(current_folder + '/final.log', 'w')
     process = subprocess.Popen(cmd, stdout= logFile, shell = True)
     process.wait()
     logFile.close()

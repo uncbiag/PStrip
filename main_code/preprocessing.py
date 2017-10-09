@@ -11,8 +11,6 @@ from niftyreg import *
 def create_temp_image(image_path, temp_folder):
     print 'creating temp image'
     temp_image_file = temp_folder + '/temp_image.nii.gz'
-    if os.path.isfile(temp_image_file):
-        return
     # using float32
     image = sitk.Cast(sitk.ReadImage(image_path), sitk.sitkFloat32)
     temp_image = sitk.RescaleIntensity(image1=image, outputMinimum=0, outputMaximum=1)
@@ -35,8 +33,6 @@ def affine_to_atlas(atlas_wo_skull_file, atlas_w_skull_file, atlas_mask_file, te
     affine_trans = temp_folder + '/affine_trans.txt'
     invaff_trans = temp_folder + '/affine_invtrans.txt'
 
-    if os.path.isfile(invaff_trans):
-        return
     affine_log = temp_folder + '/pre_affine.log'
     log = open(affine_log, 'w')
     cmd = ""
@@ -61,8 +57,6 @@ def bias_correction(atlas_erode_mask_file, temp_folder):
     # input/output file name
     affine_file = temp_folder + '/affine_output2.nii.gz'
     bias_file = temp_folder + '/bias_output.nii.gz'
-    if os.path.isfile(bias_file):
-        return
      
     # input image
     affine_img = sitk.ReadImage(affine_file)
@@ -82,8 +76,6 @@ def intensity_normalization(atlas_erode_mask_file, temp_folder):
     bias_file = temp_folder + '/bias_output.nii.gz'
     norm_file = temp_folder + '/norm_output.nii.gz'
     
-    if os.path.isfile(norm_file):
-        return
     bias_img = sitk.ReadImage(bias_file)
     bias_arr = sitk.GetArrayFromImage(bias_img)
     mask_img = sitk.ReadImage(atlas_erode_mask_file)
@@ -91,13 +83,13 @@ def intensity_normalization(atlas_erode_mask_file, temp_folder):
 
     # calculate 99th and 1st percentile
     intensities = bias_arr[np.where(mask_arr==1)]
-    i_max = np.percentile(intensities, 99)
-    i_min = np.percentile(intensities, 1)
-    print 'i_max:', str(i_max), 'i_min:', i_min
+    i_max = np.percentile(intensities, 99.9)
+    i_min = np.percentile(intensities, 0.1)
+    #print 'i_max:', str(i_max), 'i_min:', str(i_min)
     # map i_max -> 0.9, i_min -> 0.1, affine tranform on intensities, then cutoff [0, 1]
     # y = a(x+b)
-    b = (i_max-9*i_min)/8
-    a = 0.8/(i_max-i_min)
+    b = (i_max-4*i_min)/3
+    a = 0.6/(i_max-i_min)
     norm_img_pre = sitk.ShiftScale(image1=bias_img, shift=b, scale=a)
 #    a = 0.8/(i_max-i_min)
 #    b = 0.1 - a*i_min
@@ -115,21 +107,20 @@ def histogram_matching(pca_mean_file, atlas_erode_mask_file, temp_folder):
     # input/output image
     norm_file = temp_folder + '/norm_output.nii.gz'
     match_file = temp_folder + '/match_output.nii.gz'
-    if os.path.isfile(match_file):
-        return
     
     norm_img = sitk.ReadImage(norm_file)
     mask_img = sitk.ReadImage(atlas_erode_mask_file)   
     
-    # only match inside of erode mask
+    pca_img = sitk.ReadImage(pca_mean_file)
+    pca_in_img = sitk.Mask(image=pca_img, maskImage=mask_img) 
+    # only match inside of mask
     norm_in_img = sitk.Mask(image=norm_img, maskImage=mask_img)
     norm_out_img = sitk.MaskNegated(image=norm_img, maskImage=sitk.Cast(mask_img, norm_img.GetPixelID()))
-    pca_mean_img = sitk.ReadImage(pca_mean_file)
  
-    match_in_img = sitk.HistogramMatching(norm_in_img, pca_mean_img, numberOfHistogramLevels=1000)
-    match_img = sitk.Add(match_in_img, norm_out_img)
+    match_in_img = sitk.HistogramMatching(norm_in_img, pca_in_img, numberOfHistogramLevels=1000)
+    match_img = sitk.Add(sitk.Mask(image=match_in_img,maskImage=mask_img), norm_out_img)
     sitk.WriteImage(match_img, match_file)
-    del norm_img, mask_img, norm_in_img, norm_out_img, pca_mean_img, match_in_img, match_img
+    del norm_img, mask_img, norm_in_img, norm_out_img, pca_img, pca_in_img, match_in_img, match_img
 
 
 
@@ -150,12 +141,12 @@ def main(argv):
     temp_folder = os.path.join(os.sys.path[0], '..', 'tmp_res', 'temp_'+image_name)
     os.system('mkdir ' + temp_folder)
 
-    create_temp_image(image_path, temp_folder)
+#    create_temp_image(image_path, temp_folder)
 
     # using dilate mask file for second affine
-    affine_to_atlas(atlas_wo_skull_file, atlas_w_skull_file, atlas_dilate_mask_file, temp_folder)
+#    affine_to_atlas(atlas_wo_skull_file, atlas_w_skull_file, atlas_dilate_mask_file, temp_folder)
 
-    bias_correction(atlas_erode_mask_file, temp_folder)
+#    bias_correction(atlas_erode_mask_file, temp_folder)
     intensity_normalization(atlas_erode_mask_file, temp_folder)
     histogram_matching(pca_mean_file, atlas_erode_mask_file, temp_folder) 
 

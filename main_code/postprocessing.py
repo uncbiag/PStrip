@@ -59,7 +59,7 @@ def main(argv):
     sitk.WriteImage(final_mask_brain_img, final_brain_file)
 
   
-#    clearFiles(temp_folder)
+    clearFiles(temp_folder)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
