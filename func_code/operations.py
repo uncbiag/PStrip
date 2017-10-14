@@ -2,6 +2,17 @@ import numpy as np
 import SimpleITK as sitk
 import os
 
+def remove_nan(img_name):
+    # remove the nan value inside the img
+
+    img = sitk.ReadImage(img_name)
+    img_arr = sitk.GetArrayFromImage(img)
+    new_arr = np.nan_to_num(img_arr)
+    new_img = sitk.GetImageFromArray(new_arr)
+    new_img.CopyInformation(img)
+    sitk.WriteImage(new_img, img_name)
+
+
 def save_image_from_data_matrix(data_matrix, ref_img_name, file_name, extension=False, firstOnly = False):
     ref_img = sitk.ReadImage(ref_img_name)
     ref_arr = sitk.GetArrayFromImage(ref_img)
