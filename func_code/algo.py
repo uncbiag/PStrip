@@ -49,7 +49,7 @@ absolute_matrix = ElementwiseKernel(
 
 assign_matrix = ElementwiseKernel(
     "float *a, float *_lambda, float *b",
-    "if(_lambda[i]==10){a[i]=0;} else if(_lambda[i]==0.001){a[i]=b[i];}",
+    "if(_lambda[i]==10){a[i]=0;} else if(_lambda[i]==0.001f){a[i]=b[i];}",
     "assign_matrix")
 kernel_code_template = """
 __global__ void MatrixMulKernel(float *A, float *B, float *C)
@@ -287,10 +287,9 @@ def decompose(d, beta, betaT, _lambda, _gamma, _lambda_c, _gamma_c, tol=0.1):
     ys_new = gpuarray.zeros_like(y_s)
     yt_new = gpuarray.zeros_like(y_t)
     assign_matrix(x_s, _Lambda, D)
-    assign_matrix(x_t, _Gamma, D)
-    
+ 
     EL,ES, ET, Es = computeEnergy(D_v, x_s, x_t,  _Lambda, _gamma_c, x_a, Beta) 
-    print 'Initial Energy: E = ' + str(Es) + '\n'
+    print 'Initial Energy: E = ' + str(Es) + ', EL=' + str(EL) + ', ES=' + str(ES) + ', ET=' + str(ET)
     change = 10;
     t0 = time.time()
     for i in range(max_iter):
@@ -340,5 +339,3 @@ def decompose(d, beta, betaT, _lambda, _gamma, _lambda_c, _gamma_c, tol=0.1):
     return (l, s, t, alpha)
 
 
-if __name__ == "__main__":
-    main()

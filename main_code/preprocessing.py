@@ -17,34 +17,48 @@ def create_temp_image(image_path, temp_folder):
     sitk.WriteImage(temp_image, temp_image_file)
     del temp_image 
 
-def affine_to_atlas(atlas_wo_skull_file, atlas_mask_file, temp_folder):
+def affine_to_atlas(atlas_wo_skull_file, atlas_w_skull_file, atlas_mask_file, temp_folder):
 
+    # Two steps of affine registration
     print 'performing affine registration'
+    # input image 
     norm_file = temp_folder + '/norm_output.nii.gz'
-
-
-    affine_file = temp_folder + '/affine_output.nii.gz'
+    # affine output/trans 1
+    affine_file1 = temp_folder + '/affine_output1.nii.gz'
+    affine_trans1 = temp_folder + '/affine_trans1.txt'
+    # affine output/trans 2
+    affine_file2 = temp_folder + '/affine_output2.nii.gz'
+    affine_trans2 = temp_folder + '/affine_trans2.txt'
+    # affine trans/inv_trans
     affine_trans = temp_folder + '/affine_trans.txt'
     invaff_trans = temp_folder + '/affine_invtrans.txt'
 
     affine_log = temp_folder + '/pre_affine.log'
     log = open(affine_log, 'w')
     cmd = ""
-    cmd += '\n' + nifty_reg_affine(ref=atlas_wo_skull_file, flo=norm_file, res=affine_file, aff=affine_trans, rmask=atlas_mask_file, symmetric=False, init = 'cog')
+    # reg input -> atlas_w_skull, mask on atlas_w_skull
+    cmd += '\n' + nifty_reg_affine(ref=atlas_w_skull_file, flo=norm_file, res=affine_file1, aff=affine_trans1, symmetric=False, init = 'cog')
+    # reg affine output 1 -> atlas_wo_skull, mask on dilate
+    cmd += '\n' + nifty_reg_affine(ref=atlas_wo_skull_file, flo=affine_file1, res=affine_file2, aff=affine_trans2, rmask=atlas_mask_file, symmetric=False)
+    # composite trans
+    cmd += '\n' + nifty_reg_transform(comp1=affine_trans2, comp2=affine_trans1, comp3=affine_trans)
+    # get inverse
     cmd += '\n' + nifty_reg_transform(invAff1=affine_trans, invAff2=invaff_trans)
 
+    print cmd
     process = subprocess.Popen(cmd, shell=True, stdout=log)
     process.wait()
     log.close()
+
     
-    remove_nan(affine_file) 
+    remove_nan(affine_file2) 
 
 
 def bias_correction(atlas_erode_mask_file, temp_folder):
     print 'performing bias correction' 
 
     # input/output file name
-    affine_file = temp_folder + '/affine_output.nii.gz'
+    affine_file = temp_folder + '/affine_output2.nii.gz'
     bias_file = temp_folder + '/bias_output.nii.gz'
      
     # input image
@@ -146,7 +160,7 @@ def main(argv):
     create_temp_image(image_path, temp_folder)
     intensity_normalization(temp_folder)
  
-    affine_to_atlas(atlas_wo_skull_file, atlas_dilate_mask_file, temp_folder)
+    affine_to_atlas(atlas_wo_skull_file, atlas_w_skull_file, atlas_dilate_mask_file, temp_folder)
     bias_correction(atlas_erode_mask_file, temp_folder)
     histogram_matching(pca_mean_file, atlas_erode_mask_file, temp_folder) 
 
