@@ -84,7 +84,10 @@ def intensity_normalization(temp_folder):
     intensities = temp_arr.reshape(-1)
     i_max = np.percentile(intensities, 99)
     i_min = np.percentile(intensities, 1)
-    # map i_max -> 900, i_min -> 100, affine tranform on intensities, then cutoff [0, 1]
+ 
+#    norm_img = sitk.IntensityWindowing(temp_img, windowMinimum=i_min, windowMaximum=i_max, outputMinimum=0.0, outputMaximum=1.0)
+
+   # map i_max -> 900, i_min -> 100, affine tranform on intensities, then cutoff [0, 1]
     # y = a(x+b)
     b = (i_max-9*i_min)/8
     a = 800/(i_max-i_min)
@@ -140,8 +143,8 @@ def histogram_matching(pca_mean_file, atlas_mask_file, temp_folder):
     
     del bias_img, mean_img, mask_img, bias_mask_img, mean_mask_img, bias_mask_arr, mean_mask_arr, bias_arr, match_arr, match_img
 
-def main(argv):
-    image_path = sys.argv[1]
+
+def preprocessing(image_path):
     image_file = os.path.basename(image_path)
     image_name = image_file.split('.')[0] 
 
@@ -164,6 +167,9 @@ def main(argv):
     bias_correction(atlas_erode_mask_file, temp_folder)
     histogram_matching(pca_mean_file, atlas_erode_mask_file, temp_folder) 
 
+#def preprocessing(args):
+#    print str(args)
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    image_path = sys.argv[1]
+    preprocessing(image_path)

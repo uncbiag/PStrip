@@ -301,7 +301,7 @@ def performDecomposition(current_iter, current_folder, Beta, BetaT, D_mean, imag
 
 
 def main(argv):
-    
+    print str(argv)    
     configure = performInitialization(argv)
     atlas_map = sitk.GetArrayFromImage(sitk.ReadImage(configure['atlas_map_name']))
     atlas_arr = sitk.GetArrayFromImage(sitk.ReadImage(configure['atlas_im_name']))
