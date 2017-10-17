@@ -29,12 +29,12 @@ def clearFiles(temp_folder):
 
 
 
-def postprocessing(image_name):
-    image_file = os.path.basename(image_name)
+def postprocessing(image_path):
+    image_file = os.path.basename(image_path)
     image_name = image_file.split('.')[0]
 
     temp_folder = os.path.join(os.sys.path[0], '..', 'tmp_res', 'temp_' + image_name)
-    original_file = image_name
+    original_file = image_path
     final_inv_disp = temp_folder + '/final_inv_DVF.nii'
    
      
@@ -61,7 +61,7 @@ def postprocessing(image_name):
     clearFiles(temp_folder)
 
 if __name__ == '__main__':
-    image_name = sys.argv[1]
-    postprocessing(image_name)
+    image_path = sys.argv[1]
+    postprocessing(image_path)
 
 
