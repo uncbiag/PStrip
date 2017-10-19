@@ -1,6 +1,7 @@
 import argparse
 import os
 import warnings
+
 from preprocessing import *
 from main import *
 from postprocessing import *
@@ -30,7 +31,7 @@ file_args.add_argument('-m, --mask', metavar='', dest='mask_image', help='output
 file_args.add_argument('-o, --output', metavar='', dest='output_image', help='brain extracted image. If not specified, image is generated into input image folder.')
 
 additional_args = parser.add_argument_group('additional arguments')
-additional_args.add_argument('-p, --platform', metavar='', dest='platform', help='platform (CPU/GPU), default GPU', default='GPU', choices=['CPU', 'GPU'])
+additional_args.add_argument('-p, --platform', metavar='', dest='platform', help='platform (CPU/GPU), default GPU', default='GPU', choices=['CPU', 'GPU', 'cpu', 'gpu'])
 additional_args.add_argument('-g, --gamma', metavar='', dest='gamma', help='gamma for total variation term penalty, default 0.5', type=float, default=0.5)
 additional_args.add_argument('-l, --lambda', metavar='', dest='_lambda', help='lambda for sparse term penalty, default 0.1', type=float, default=0.1)
 additional_args.add_argument('-c, --correction', metavar='', dest='num_of_correction', help='number of correction (regularization) steps, default 0', type=int, default=0)
@@ -57,7 +58,7 @@ if __name__ == '__main__':
         output_name = image_name + '_extracted' + '.' + extension
         output_image = os.path.join(dir_name, output_name) #/path/to/image/image_name_extracted.extension
  
-    platform = args.platform
+    platform = args.platform.upper()
     _lambda = args._lambda
     gamma = args.gamma
     num_of_correction = args.num_of_correction
@@ -66,11 +67,13 @@ if __name__ == '__main__':
     if debug == 2:
         msg = 'You are using ultra debugging mode. All intermediate results will be saved on disk. This could occupy large space on disk if multiple images will be processed. Consider use -d 1.'
         warnings.warn(message=msg, category=Warning)
+    print 'input parameters: ' + str(args)
+
     print 'Starting pre-processing'    
-#    preprocessing(input_image)
+    preprocessing(input_image)
     print 'Starting Decomposition/Registration'
     main_args = [input_image, _lambda, gamma, num_of_correction, platform]
-#    main(main_args)
+    main(main_args)
     print 'Starting post-processing'
     postprocessing(input_image)
 

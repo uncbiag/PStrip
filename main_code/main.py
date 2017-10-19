@@ -5,12 +5,13 @@ import subprocess
 import os
 
 sys.path.append(os.path.join(sys.path[0], '..', 'func_code'))
+
 from niftyreg import *
 from decomposition import *
 from operations import *
 
 
-def performInitialization(argv):
+def performInitialization(args):
     configure = {}
     num_of_iteration = 6
     configure['num_of_normal_used'] = 100 # currently fixed number of normal images used. 2D:250;3D:80/100
@@ -18,10 +19,11 @@ def performInitialization(argv):
     configure['num_of_iteration'] = 6 # currently fixed number of iteration. manually change
     configure['num_of_bspline_iteration'] = 3 # currently fixed 3
     
-    configure['image_file'] = argv[0] # temp_folder + image_name
-    configure['param_1'] = float(argv[1]) # parameter, usually _lambda
-    configure['param_2'] = float(argv[2]) # parameter, usually gamma
-    configure['num_of_correction'] = int(argv[3]) # number of correction steps performed
+    configure['image_file'] = args[0] # temp_folder + image_name
+    configure['param_1'] = float(args[1]) # parameter, usually _lambda
+    configure['param_2'] = float(args[2]) # parameter, usually gamma
+    configure['num_of_correction'] = int(args[3]) # number of correction steps performed
+    configure['platform'] = args[4]
     configure['start_iteration'] = 1
 
     root_folder = os.path.join(sys.path[0], '..')
@@ -272,9 +274,15 @@ def performDecomposition(current_iter, current_folder, Beta, BetaT, D_mean, imag
     input_name = current_folder + '/' + 'Iter' + str(current_iter) + '_Input.nii.gz'
     D = sitk.GetArrayFromImage(sitk.ReadImage(input_name)).astype(np.float32)
     if current_iter <= num_of_iteration - 1 and correction != 0:
-        L, S, T, Alpha = pca_GPU(D, D_mean, atlas_map, Beta, BetaT, _lambda, _gamma/2, 0)
+        if configure['platform'] == 'CPU':
+            L, S, T, Alpha = pca_CPU(D, D_mean, atlas_map, Beta, _lambda, _gamma/2, 0)
+        else:
+            L, S, T, Alpha = pca_GPU(D, D_mean, atlas_map, Beta, BetaT, _lambda, _gamma/2, 0)
     else:
-        L, S, T, Alpha = pca_GPU(D, D_mean, atlas_map, Beta, BetaT, _lambda, _gamma, correction)
+        if configure['platform'] == 'CPU':
+            L, S, T, Alpha = pca_CPU(D, D_mean, atlas_map, Beta, _lambda, _gamma, correction)
+        else:
+            L, S, T, Alpha = pca_GPU(D, D_mean, atlas_map, Beta, BetaT, _lambda, _gamma, correction)
  
 
     l_v = L.reshape(image_size, 1) # quasi low-rank/reconstruction
@@ -300,9 +308,9 @@ def performDecomposition(current_iter, current_folder, Beta, BetaT, D_mean, imag
     return
 
 
-def main(argv):
-    print str(argv)    
-    configure = performInitialization(argv)
+def main(args):
+    print str(args)    
+    configure = performInitialization(args)
     atlas_map = sitk.GetArrayFromImage(sitk.ReadImage(configure['atlas_map_name']))
     atlas_arr = sitk.GetArrayFromImage(sitk.ReadImage(configure['atlas_im_name']))
     z,x,y = atlas_arr.shape

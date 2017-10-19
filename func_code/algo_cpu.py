@@ -1,10 +1,15 @@
-# PCA model with ROF version
+# PCA model with ROF version.
 # E(L, S, T, {\alpha}_l) = \int \lambda|S| + \gamma\|\nabla T\| (L-\sum_l\alpha_l\Beta_l\)^2 dx
+# implementation based on Primal-Dual Hybrid Gradient 
+from __future__ import division
+
 import sys
 import time
 import numpy as np
 
+
 def grad(u):
+    # calculate gradient 
     l, m, n = u.shape
     G = np.zeros((3, l, m, n), u.dtype)
     G[0, :, :, :-1] = u[:, :, 1:] - u[:, :, :-1]
@@ -13,6 +18,7 @@ def grad(u):
     return G
 
 def div(u):
+    # calculate divergence
     _, l, m, n = u.shape
     Px = u[0,:,:,:]
     Py = u[1,:,:,:]
@@ -34,14 +40,14 @@ def computeEnergy(D, S, T, _Lambda, _gamma_c, Alpha, Beta):
     
     l, m, n = D.shape
     sum_alpha_beta = np.dot(Beta, Alpha);
-
-    
+  
+    # \nabla TV term energy  
     GR = np.linalg.norm(grad(T), axis =0)
     ET = _gamma_c * GR.sum()
-
+    # S term energy
     SP = _Lambda * np.abs(S)
     ES = SP.sum()
-
+    # L-Ba
     sparse = D.reshape(l*m*n, 1) - S.reshape(l*m*n, 1) - T.reshape(l*m*n,1) - sum_alpha_beta
     EL = np.square(sparse).sum()
 
@@ -77,6 +83,7 @@ def ProxFS(s, t, _Lambda, _gamma_c):
     return (ps, pt)
 
 def decompose(D, Beta, _Lambda, _Gamma, _lambda_c, _gamma_c, tol=0.1):
+    print 'start decomposing in CPU'
     l,m, n = D.shape
     _, k = Beta.shape
 

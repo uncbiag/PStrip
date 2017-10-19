@@ -3,7 +3,10 @@ This repository contains the code for the following paper (in writing)
 
 ## Setup
 This code has been tested on Ubuntu 14.04 with Python 2.7 (Nvidia Titan X GPU, cuda 8.0)
-2017/10/06: the code is being tested on Ubuntu 16.04 with Python 2.7 (cuda 9.0)
+
+2017/10/19: CPU implementation is added. (No need for cuda, if only cpu is used)
+
+2017/10/06: the code works on Ubuntu 16.04 with Python 2.7 (cuda 9.0)
 
 **Download and Install virtualenv (Option for no-sudo privilege user)**
 Download virtualenv
@@ -38,17 +41,10 @@ CPU implementation of the decompostion is relatively slow, and we haven't upload
 **Download and Install niftyreg**
 http://cmictig.cs.ucl.ac.uk/wiki/index.php/NiftyReg_install
 
-In order to use the GPU, please set the CUDA_FLAG to on. (Currently all registration steps are using CPU only)
+For future purpose, n order to use the GPU, set the CUDA_FLAG to on. (Currently all registration steps are using CPU only)
 
-2017/10/06: Newest niftyreg affine registration reg_aladin seems padding with NaN. It breaks the code at preprocessing.py. One way to work-around is to modify the following files under nifty-reg folder: 
-
-path/to/niftyreg/reg-lib/_reg_aladin.cpp line 429
-path/to/niftyreg/reg-lib/_reg_aladin_sym.cpp line 225
-```bash
-//  this->resamplingKernel->template castTo<ResampleImageKernel>()->calculate(interp, std::numeric_limits<T>::quiet_NaN());
-  this->resamplingKernel->template castTo<ResampleImageKernel>()->calculate(interp, 0);
-```
-
+2017/10/17: We add a 'remove_nan' function to replace the nan value to 0, after affine.   
+2017/10/06: Newest niftyreg affine registration reg_aladin seems padding with NaN. It breaks the code at preprocessing.py.  
 
 **Download and Install pycuda/scikit-cuda**
 Follow https://wiki.tiker.net/PyCuda/Installation/Linux

@@ -1,5 +1,5 @@
 # PCA model with ROF version
-# E(L, S, {\alpha}_l) = \int \|\nabla S| + \gamma/2*(L-\sum_l\alpha_l\Beta_l\)^2 dx
+# E(L, S, T, {\alpha}_l) = \int \gamma \|\nabla T| + \lambda\|S\|+ 1/2*(L-\sum_l\alpha_l\Beta_l\)^2 dx
 from __future__ import division
 
 import sys
@@ -244,7 +244,7 @@ def ProxFSs(s,t, _Lambda, _gamma_c):
 
 
 def decompose(d, beta, betaT, _lambda, _gamma, _lambda_c, _gamma_c, tol=0.1):
-    print 'start decomposing'
+    print 'start decomposing in GPU'
     sk_misc.init()
     D = gpuarray.to_gpu(d)
     Beta = gpuarray.to_gpu(beta)
