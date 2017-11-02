@@ -5,6 +5,7 @@ MAINTAINER Xu Han xhs400@cs.unc.edu
 RUN apt-get update; \ 
     apt-get -y upgrade; \
     apt-get install -y \
+    apt-utils \
     python-pip \
     git \
     wget \
@@ -66,6 +67,12 @@ RUN git clone https://github.com/lebedov/scikit-cuda.git; \
 
 RUN git clone https://github.com/uncbiag/PStrip.git
 
-COPY data/atlas/ /PStrip/data/atlas/
-COPY data/pca/pca_100/ /PStrip/data/pca/pca_100/
+RUN apt-get install -y \
+    zip \
+    unzip
+
+WORKDIR /PStrip
+RUN wget https://github.com/uncbiag/PStrip/releases/download/v1.0.0-alpha/data.zip; \
+    unzip data.zip; \
+    rm data.zip
 
