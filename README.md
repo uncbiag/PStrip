@@ -21,7 +21,7 @@ python pstrip.py -i ../data/atlas/atlas_w_skull.nii
 which simply tries to extract the brain from atlas image.  
 
 
-##Version 1.0.0-alpha   
+## v1.0.0-alpha 2017/11/02  
 Currently the only usage is 
 ```
 python pstrip.py -i input_image_path
