@@ -1,4 +1,12 @@
-nifty_bin = '/playpen/xhs400/Research/niftyreg-git/niftyreg_install/bin'
+import os
+import imp
+import sys
+
+f = open(os.path.join(sys.path[0], '..', 'func_code', 'niftyreg.conf'))
+config = imp.load_source('config', '', f)
+f.close()
+
+nifty_bin = config.nifty_bin
 
 def nifty_reg_bspline(ref, flo, res = False, cpp = False, rmask = False, fmask = False, levels = False ):
     executable = nifty_bin + '/reg_f3d'
