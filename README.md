@@ -20,6 +20,14 @@ python pstrip.py -i ../data/atlas/atlas_w_skull.nii
 ```
 which simply tries to extract the brain from atlas image.  
 
+
+##Version 1.0.0-alpha   
+Currently the only usage is 
+```
+python pstrip.py -i input_image_path
+```
+The output files can be found in Pstrip/tmp_res/temp_$input_image_name/
+
 ## Setup
 This code has been tested on Ubuntu 14.04 with Python 2.7 (Nvidia Titan X GPU, cuda 8.0)
 
