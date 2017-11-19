@@ -3,11 +3,13 @@ import subprocess
 import os
 import SimpleITK as sitk
 import numpy as np
+import warnings
 
 sys.path.append(os.path.join(sys.path[0], '..', 'func_code'))
 
 from niftyreg import *
 from operations import *
+from argparse import Namespace
 
 def create_temp_image(image_path, temp_folder):
     print 'creating temp image'
@@ -17,7 +19,7 @@ def create_temp_image(image_path, temp_folder):
     sitk.WriteImage(temp_image, temp_image_file)
     del temp_image 
 
-def affine_to_atlas(atlas_wo_skull_file, atlas_w_skull_file, atlas_mask_file, temp_folder):
+def affine_to_atlas(atlas_wo_skull_file, atlas_w_skull_file, atlas_mask_file, temp_folder, args):
 
     # Two steps of affine registration
     print 'performing affine registration'
@@ -36,7 +38,7 @@ def affine_to_atlas(atlas_wo_skull_file, atlas_w_skull_file, atlas_mask_file, te
     affine_log = temp_folder + '/pre_affine.log'
     log = open(affine_log, 'w')
     cmd = ""
-    # reg input -> atlas_w_skull, mask on atlas_w_skull
+    # reg input -> atlas_w_skull, no mask
     cmd += '\n' + nifty_reg_affine(ref=atlas_w_skull_file, flo=norm_file, res=affine_file1, aff=affine_trans1, symmetric=False, init = 'cog')
     # reg affine output 1 -> atlas_wo_skull, mask on dilate
     cmd += '\n' + nifty_reg_affine(ref=atlas_wo_skull_file, flo=affine_file1, res=affine_file2, aff=affine_trans2, rmask=atlas_mask_file, symmetric=False)
@@ -45,7 +47,8 @@ def affine_to_atlas(atlas_wo_skull_file, atlas_w_skull_file, atlas_mask_file, te
     # get inverse
     cmd += '\n' + nifty_reg_transform(invAff1=affine_trans, invAff2=invaff_trans)
 
-    print cmd
+    if args.verbose == True:
+        print cmd
     process = subprocess.Popen(cmd, shell=True, stdout=log)
     process.wait()
     log.close()
@@ -85,9 +88,7 @@ def intensity_normalization(temp_folder):
     i_max = np.percentile(intensities, 99)
     i_min = np.percentile(intensities, 1)
  
-#    norm_img = sitk.IntensityWindowing(temp_img, windowMinimum=i_min, windowMaximum=i_max, outputMinimum=0.0, outputMaximum=1.0)
-
-   # map i_max -> 900, i_min -> 100, affine tranform on intensities, then cutoff [0, 1]
+    # map i_max -> 900, i_min -> 100, affine tranform on intensities, then cutoff [0, 1]
     # y = a(x+b)
     b = (i_max-9*i_min)/8
     a = 800/(i_max-i_min)
@@ -144,7 +145,8 @@ def histogram_matching(pca_mean_file, atlas_mask_file, temp_folder):
     del bias_img, mean_img, mask_img, bias_mask_img, mean_mask_img, bias_mask_arr, mean_mask_arr, bias_arr, match_arr, match_img
 
 
-def preprocessing(image_path):
+def preprocessing(args):
+    image_path = args.input_image
     image_file = os.path.basename(image_path)
     image_name = image_file.split('.')[0] 
 
@@ -158,18 +160,21 @@ def preprocessing(image_path):
     pca_mean_file = root_folder + '/data/pca/pca_100/pca_warped_mean_100.nii'
 
     temp_folder = os.path.join(os.sys.path[0], '..', 'tmp_res', 'temp_'+image_name)
-    os.system('mkdir ' + temp_folder)
+    if os.path.exists(temp_folder):
+        msg = 'The temp folder exists. You may have tried to extract the brain from this image. The previous results will be overwrited!'
+        warnings.warn(message = msg, category=Warning) 
+    else:    
+        os.system('mkdir ' + temp_folder)
 
     create_temp_image(image_path, temp_folder)
     intensity_normalization(temp_folder)
  
-    affine_to_atlas(atlas_wo_skull_file, atlas_w_skull_file, atlas_dilate_mask_file, temp_folder)
+    affine_to_atlas(atlas_wo_skull_file, atlas_w_skull_file, atlas_dilate_mask_file, temp_folder, args)
     bias_correction(atlas_erode_mask_file, temp_folder)
     histogram_matching(pca_mean_file, atlas_erode_mask_file, temp_folder) 
 
-#def preprocessing(args):
-#    print str(args)
 
 if __name__ == '__main__':
     image_path = sys.argv[1]
-    preprocessing(image_path)
+    args = Namespace(input_image=image_path, debug=2, verbose=True)
+    preprocessing(args)

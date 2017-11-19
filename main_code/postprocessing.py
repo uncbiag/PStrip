@@ -7,6 +7,8 @@ import SimpleITK as sitk
 sys.path.append(os.path.join(sys.path[0], '..', 'func_code'))
 
 from niftyreg import *
+from argparse import Namespace
+
 
 def clearFiles(temp_folder):
     lowrank_file = temp_folder + '/Iter6_InvWarpedLowRank.nii.gz'
@@ -25,23 +27,26 @@ def clearFiles(temp_folder):
     os.system('rm ' + iters_file) 
 
 
-    
+def clearFolders(folder):
+    os.system('rm -r ' + folder)    
 
 
 
-def postprocessing(image_path):
+def postprocessing(args):
+    image_path = args.input_image
+    mask_image = args.mask_image
+    output_image = args.output_image
+
+
     image_file = os.path.basename(image_path)
     image_name = image_file.split('.')[0]
-
     temp_folder = os.path.join(os.sys.path[0], '..', 'tmp_res', 'temp_' + image_name)
     original_file = image_path
     final_inv_disp = temp_folder + '/final_inv_DVF.nii'
    
-     
     final_mask_file = temp_folder + '/Iter6_FinalMask.nii.gz'
     inv_final_mask_file = temp_folder + '/Origin_FinalMask.nii.gz'
-
-    final_brain_file = temp_folder + '/Origin_FinalBrain.nii.gz'
+    inv_final_brain_file = temp_folder + '/Origin_FinalBrain.nii.gz'
 
     cmd = ""
     cmd += '\n' + nifty_reg_resample(ref=original_file, flo=final_mask_file, trans=final_inv_disp, res=inv_final_mask_file)
@@ -52,16 +57,21 @@ def postprocessing(image_path):
 
     final_mask_img = sitk.ReadImage(inv_final_mask_file)
     original_img = sitk.ReadImage(original_file)   
-    
     final_mask_brain_img = sitk.Mask(original_img, final_mask_img)
-    
-    sitk.WriteImage(final_mask_brain_img, final_brain_file)
+    sitk.WriteImage(final_mask_brain_img, inv_final_brain_file)
 
-  
-    clearFiles(temp_folder)
+    if mask_image != None:
+        sitk.WriteImage(sitk.ReadImage(inv_final_mask_file), mask_image)
+    if output_image != None:
+        sitk.WriteImage(sitk.ReadImage(inv_final_brain_file), output_image)
+
+    if args.debug == 0:
+        clearFolders(temp_folder)
+    elif args.debug == 1:  
+        clearFiles(temp_folder)
 
 if __name__ == '__main__':
-    image_path = sys.argv[1]
-    postprocessing(image_path)
+    args = Namespace(input_image=sys.argv[1], verbose=True, debug=1)
+    postprocessing(args)
 
 

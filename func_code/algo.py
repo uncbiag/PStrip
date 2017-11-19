@@ -243,7 +243,7 @@ def ProxFSs(s,t, _Lambda, _gamma_c):
 
 
 
-def decompose(d, beta, betaT, _lambda, _gamma, _lambda_c, _gamma_c, tol=0.1):
+def decompose(d, beta, betaT, _lambda, _gamma, _lambda_c, _gamma_c, verbose):
     print 'start decomposing in GPU'
     sk_misc.init()
     D = gpuarray.to_gpu(d)
@@ -292,6 +292,9 @@ def decompose(d, beta, betaT, _lambda, _gamma, _lambda_c, _gamma_c, tol=0.1):
     print 'Initial Energy: E = ' + str(Es) + ', EL=' + str(EL) + ', ES=' + str(ES) + ', ET=' + str(ET)
     change = 10;
     t0 = time.time()
+    print_iters = 200
+    if verbose == True:
+        print_iters = 50
     for i in range(max_iter):
         ks_yt = -div(y_t)
         ks_ys = y_s
@@ -319,7 +322,7 @@ def decompose(d, beta, betaT, _lambda, _gamma, _lambda_c, _gamma_c, tol=0.1):
         change = np.append(change, El5c-El5);
         t1 = time.time() - t0
         
-        if np.mod(i+1, 200) == 0:
+        if np.mod(i+1, print_iters) == 0:
             print 'Iter ' + str(i+1) + ': E = ' + str(E) + '; EL=' + str(EL) + ', ES=' + str(ES) + ', ET=' + str(ET) + ', aechg = ' + str(change[length-1])
         if i>= 100 and np.max(np.abs(change[np.maximum(0,length-3):length])) < tol:
             print 'Iter ' + str(i+1) + ': E = ' + str(E) + '; EL=' + str(EL) + ', ES=' + str(ES) + ', ET=' + str(ET) + ', aechg = ' + str(change[length-1])

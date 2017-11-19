@@ -9,6 +9,7 @@ sys.path.append(os.path.join(sys.path[0], '..', 'func_code'))
 from niftyreg import *
 from decomposition import *
 from operations import *
+from argparse import Namespace
 
 
 def performInitialization(args):
@@ -19,12 +20,14 @@ def performInitialization(args):
     configure['num_of_iteration'] = 6 # currently fixed number of iteration. manually change
     configure['num_of_bspline_iteration'] = 3 # currently fixed 3
     
-    configure['image_file'] = args[0] # temp_folder + image_name
-    configure['param_1'] = float(args[1]) # parameter, usually _lambda
-    configure['param_2'] = float(args[2]) # parameter, usually gamma
-    configure['num_of_correction'] = int(args[3]) # number of correction steps performed
-    configure['platform'] = args[4]
+    configure['image_file'] = args.input_image # temp_folder + image_name
+    configure['_lambda'] = args._lambda # parameter, usually _lambda
+    configure['gamma'] = args.gamma # parameter, usually gamma
+    configure['num_of_correction'] = args.num_of_correction # number of correction steps performed
+    configure['platform'] = args.platform
     configure['start_iteration'] = 1
+    configure['verbose'] = args.verbose
+    configure['debug'] = args.debug
 
     root_folder = os.path.join(sys.path[0], '..')
     result_folder = root_folder + '/tmp_res' + '/temp_' + os.path.basename(configure['image_file']).split('.')[0]
@@ -54,6 +57,8 @@ def performInitialization(args):
 def ReadPCABasis(image_size, configure):
     D = np.zeros((image_size, configure['num_of_pca_basis']), dtype=np.float32)
     DT = np.zeros((configure['num_of_pca_basis'], image_size), dtype=np.float32)
+    if configure['verbose'] == True:
+        print 'Reading PCA Basis Images'
     for i in range(configure['num_of_pca_basis']):
         basis_file = configure['data_folder_basis'] + '/eigen_brains_warped/pca_warped_basis_' + str(i+1) + '.nii'
         basis_img = sitk.ReadImage(basis_file)
@@ -93,7 +98,8 @@ def performIteration(configure, D_Basis, D_BasisT, D_mean, image_size):
                 performInverse(current_iter, current_folder, configure)
             InverseToIterFirst(current_iter, current_folder, configure)   
     createCompDisp(current_folder, configure) 
-    clearUncessaryFiles(current_folder, configure)
+    if configure['debug'] != 2:
+        clearUncessaryFiles(current_folder, configure)
  
     return
 
@@ -145,7 +151,10 @@ def performInverse(current_iter, current_folder, configure):
     current_inv_disp =  prefix + '_InvDVF_' + str(current_iter) + '3.nii'
     cmd += '\n' + nifty_reg_transform(ref=atlas_im_name, invNrr1=current_disp, invNrr2=lowRankIm , invNrr3=current_inv_disp)
     cmd += '\n' + nifty_reg_resample(ref=atlas_im_name, flo=lowRankIm, trans=current_inv_disp, res=invWarpedLowRankIm)
-        
+       
+    if configure['verbose'] == True:
+        print 'Non-greedy strategy, inversing to original space'
+        print cmd 
     logFile = open(prefix + '_data2.log', 'w')
     process = subprocess.Popen(cmd, stdout= logFile, shell = True)
     process.wait()
@@ -195,8 +204,10 @@ def InverseToIterFirst(current_iter, current_folder, configure):
         sitk.WriteImage(final_mask, mask_name)
         inv_mask_name = prefix + '_InvFinalMask.nii.gz'
         cmd += '\n' + nifty_reg_resample(ref=configure['atlas_im_name'], flo=mask_name, trans=inverse_disp, res=inv_mask_name)
-    
-    logFile = open(prefix+ 'inverse_final_image' + '_data.log', 'w')
+    if configure['verbose'] == True:
+        print 'inversing to the first step'
+        print cmd 
+    logFile = open(prefix+ '_inverse_final_image' + '_data.log', 'w')
     process = subprocess.Popen(cmd, stdout= logFile, shell = True)
     process.wait()
     logFile.close()
@@ -252,6 +263,9 @@ def performRegistration(current_iter, current_folder, configure, registration_ty
     inverse_disp = prefix + '_inverseDVF_1'+str(current_iter)+'.nii'
     cmd += '\n' + nifty_reg_transform(ref=atlas_im_name, invNrr1=current_comp_disp, invNrr2=initial_input_image, invNrr3=inverse_disp)
     cmd += '\n' + nifty_reg_resample(ref=atlas_im_name,flo=initial_input_image,trans=current_comp_def,res=new_input_image)
+    print 'performing registration'
+    if configure['verbose'] == True:
+        print cmd
     logFile = open(prefix + '_data.log', 'w')
     process = subprocess.Popen(cmd, stdout= logFile, shell = True)
     process.wait()
@@ -261,12 +275,11 @@ def performRegistration(current_iter, current_folder, configure, registration_ty
 
         
 def performDecomposition(current_iter, current_folder, Beta, BetaT, D_mean, image_size, configure):
-    # D_mean: image_matrix (x,y,z) or (x,y)
     num_of_iteration = configure['num_of_iteration']
     num_of_bspline_iter = configure['num_of_bspline_iteration']
 
-    _lambda = configure['param_1']
-    _gamma = configure['param_2']
+    _lambda = configure['_lambda']
+    _gamma = configure['gamma']
     atlas_im_name = configure['atlas_im_name']
     atlas_map = sitk.GetArrayFromImage(sitk.ReadImage(configure['atlas_map_name'])).astype(np.float32)
     correction = configure['num_of_correction']
@@ -275,14 +288,14 @@ def performDecomposition(current_iter, current_folder, Beta, BetaT, D_mean, imag
     D = sitk.GetArrayFromImage(sitk.ReadImage(input_name)).astype(np.float32)
     if current_iter <= num_of_iteration - 1 and correction != 0:
         if configure['platform'] == 'CPU':
-            L, S, T, Alpha = pca_CPU(D, D_mean, atlas_map, Beta, _lambda, _gamma/2, 0)
+            L, S, T, Alpha = pca_CPU(D, D_mean, atlas_map, Beta, _lambda, _gamma/2, 0, configure['verbose'])
         else:
-            L, S, T, Alpha = pca_GPU(D, D_mean, atlas_map, Beta, BetaT, _lambda, _gamma/2, 0)
+            L, S, T, Alpha = pca_GPU(D, D_mean, atlas_map, Beta, BetaT, _lambda, _gamma/2, 0, configure['verbose'])
     else:
         if configure['platform'] == 'CPU':
-            L, S, T, Alpha = pca_CPU(D, D_mean, atlas_map, Beta, _lambda, _gamma, correction)
+            L, S, T, Alpha = pca_CPU(D, D_mean, atlas_map, Beta, _lambda, _gamma, correction, configure['verbose'])
         else:
-            L, S, T, Alpha = pca_GPU(D, D_mean, atlas_map, Beta, BetaT, _lambda, _gamma, correction)
+            L, S, T, Alpha = pca_GPU(D, D_mean, atlas_map, Beta, BetaT, _lambda, _gamma, correction, configure['verbose'])
  
 
     l_v = L.reshape(image_size, 1) # quasi low-rank/reconstruction
@@ -309,7 +322,6 @@ def performDecomposition(current_iter, current_folder, Beta, BetaT, D_mean, imag
 
 
 def main(args):
-    print str(args)    
     configure = performInitialization(args)
     atlas_map = sitk.GetArrayFromImage(sitk.ReadImage(configure['atlas_map_name']))
     atlas_arr = sitk.GetArrayFromImage(sitk.ReadImage(configure['atlas_im_name']))
@@ -320,6 +332,7 @@ def main(args):
     performIteration(configure, D_Basis, D_BasisT, D_mean, image_size)
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    args = Namespace(input_image=sys.argv[1], _lambda=float(sys.argv[2]), gamma=float(sys.argv[3]), num_of_correction=int(sys.argv[4]), platform=sys.argv[5], debug=1, verbose=True)
+    main(args)
  
 
