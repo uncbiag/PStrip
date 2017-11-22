@@ -1,12 +1,12 @@
 import os
-import imp
+import json
 import sys
 
-f = open(os.path.join(sys.path[0], '..', 'func_code', 'niftyreg.conf'))
-config = imp.load_source('config', '', f)
-f.close()
+json_file = os.path.join(sys.path[0], '..', 'config.json')
+with open(json_file, 'r') as nifty_json:
+    cfg = json.load(nifty_json)
 
-nifty_bin = config.nifty_bin
+nifty_bin = cfg['nifty']['bin']
 
 def nifty_reg_bspline(ref, flo, res = False, cpp = False, rmask = False, fmask = False, levels = False ):
     executable = nifty_bin + '/reg_f3d'
