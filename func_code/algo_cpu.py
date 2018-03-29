@@ -36,7 +36,7 @@ def div(u):
 
     return fx+fy+fz
 
-def computeEnergy(D, S, T, _Lambda, _gamma_c, Alpha, Beta):
+def compute_energy(D, S, T, _Lambda, _gamma_c, Alpha, Beta):
     
     l, m, n = D.shape
     sum_alpha_beta = np.dot(Beta, Alpha);
@@ -107,7 +107,7 @@ def decompose(D, Beta, _Lambda, _Gamma, _lambda_c, _gamma_c, verbose):
     x_s[_Lambda_out] = 0
     x_s[_Lambda_in] = D[_Lambda_in]
  
-    EL,ES,ET,Es = computeEnergy(D, x_s, x_t, _Lambda, _gamma_c, x_a, Beta) 
+    EL,ES,ET,Es = compute_energy(D, x_s, x_t, _Lambda, _gamma_c, x_a, Beta) 
     print 'Initial Energy: E = ' + str(Es) + ', EL=' + str(EL) + ', ES=' + str(ES) + ', ET=' + str(ET)
     change = 10
     
@@ -132,7 +132,7 @@ def decompose(D, Beta, _Lambda, _Gamma, _lambda_c, _gamma_c, verbose):
         y_s = ys_new
         y_t = yt_new
         
-        EL,ES,ET,E = computeEnergy(D, x_s, x_t, _Lambda, _gamma_c, x_a, Beta)
+        EL,ES,ET,E = compute_energy(D, x_s, x_t, _Lambda, _gamma_c, x_a, Beta)
         Es = np.append(Es, E)
         length = Es.shape[0]
         El5 = np.mean(Es[np.maximum(0,length-6):length-1])

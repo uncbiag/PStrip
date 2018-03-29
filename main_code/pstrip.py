@@ -1,144 +1,338 @@
-import argparse
+import sys
+import numpy as np
+import SimpleITK as sitk
+import subprocess
 import os
-import warnings
 
-from preprocessing import *
-from main import *
-from postprocessing import *
+sys.path.append(os.path.join(sys.path[0], '..', 'func_code'))
 
-support_extensions = ['img', 'hdr', 'nii', 'nii.gz', 'gz', 'head', 'brik', 'ima', 'gipl', 'mha', 'nrrd']
-def is_folder_exist(folder_fullpath):
-#   check if folder exists
-    if not os.path.isdir(folder_fullpath):
-        msg = 'The input folder does not exist!'
-        raise argparse.ArgumentTypeError(msg)
-    return folder_fullpath
-
-def is_file_exist(file_fullpath):
-#   check if image exists
-    if not os.path.isfile(file_fullpath):
-        msg = 'The input image file does not exist!'
-        raise argparse.ArgumentTypeError(msg)
-
-    base_name = os.path.basename(file_fullpath)
-    image_name = base_name.split('.')[0]
-    extension = '.'.join(base_name.split('.')[1:])
-#   check file extension  (FUTURE)
-    if not extension in support_extensions:
-        msg = 'The input image file extension is not supported!'
-        raise argparse.ArgumentTypeError(msg)
-    return file_fullpath
-
-parser = argparse.ArgumentParser(description='PCA model for Brain Extraction: We provide arguments for user to specify, although the default settings are sufficient for most of the cases.', prog='PStrip', conflict_handler='resolve', usage='python pstrip.py -i Input_Image [-m Mask_Name] [-o Output_Name] [-p platform] [-g gamma] [-l lambda] [-c correction] [-v] [-h]')
-
-required_args = parser.add_argument_group(title='required arguments (One and only one is required)')
-required_args.add_argument('-f', '--folder', metavar='', dest='input_folder', help='input image folder', type=is_folder_exist)
-required_args.add_argument('-i', '--input', metavar='', dest='input_image', help='input image name', type=is_file_exist)
-
-file_args = parser.add_argument_group('optional file arguments', description='If -f/--folder is used, -m/--mask and -o/--output are used for mask folder and output folder. If -i/--input is used, -m/--mask and -o/--output are used for mask image and output image.')
-file_args.add_argument('-m', '--mask', metavar='', dest='mask', help='output mask image/folder (depend on input). If both mask and output image/folder are not specified, mask image will be generated into input image folder.')
-file_args.add_argument('-o', '--output', metavar='', dest='output', help='brain extracted image/folder (depend on input). If both mask and output image/folder are not specified, output image will be generated into input image folder.')
-#file_args.add_argument('-l', '--lowrank', metavar='', dest='lowrank_image', help='quasi-normal image [quasi-lowrank]. If not specified, the image will not be generated.')
-#file_args.add_argument('-s', '--sparse', metavar='', dest='sparse_image', help='sparse image. If not specified, the image will not be generated.')
-#file_args.add_argument('-t', '--tv', metavar='', dest='tv_image', help='tv image. If not specified, the image will not be generated.')
-
-additional_args = parser.add_argument_group('additional arguments')
-additional_args.add_argument('-p', '--platform', metavar='', dest='platform', help='platform (CPU/GPU), default GPU', default='GPU', choices=['CPU', 'GPU', 'cpu', 'gpu'])
-additional_args.add_argument('-g', '--gamma', metavar='', dest='gamma', help='gamma for total variation term penalty, default 0.5', type=float, default=0.5)
-additional_args.add_argument('-la', '--lambda', metavar='', dest='_lambda', help='lambda for sparse term penalty, default 0.1', type=float, default=0.1)
-additional_args.add_argument('-c', '--correction', metavar='', dest='num_of_correction', help='number of correction (regularization) steps, default 0', type=int, default=0)
-additional_args.add_argument('-d', '--debug', metavar='', dest='debug', help='Debug mode:\n 0: no intermediate results will be saved. \n 1: some of itermediate results will be saved. \n 2: all intermediate results will be saved in tmp_res folder. Be careful, this could occupy large space on disk if multiply images will be processed', type=int, choices=[0,1,2], default=0)
-additional_args.add_argument('-v', '--version', action='version', version='PStrip v1.0: PCA model for Brain Extraction')
-additional_args.add_argument('-h', '--help', action='help', help='show this help message and exit')
-additional_args.add_argument('-V', '--verbose', action='store_true', help='increase output verbosity')
-args = parser.parse_args()
-
-if not (args.input_image or args.input_folder):
-    parser.error('At least one option is required. (-f/--folder or -i/--input)')
-
-if (args.input_image and args.input_folder):
-    parser.error('Only one option is required. (-f/--folder or -i/--input)')
+from niftyreg import *
+from decomposition import *
+from operations import *
+from argparse import Namespace
 
 
-def brain_extraction(args):
+def performInitialization(args):
+    configure = {}
+    num_of_iteration = 6
+    configure['num_of_normal_used'] = 100 # currently fixed number of normal images used. 2D:250;3D:80/100
+    configure['num_of_pca_basis'] = 50 # currently fixed number of PCA Basis used. 2D:150;3D:50
+    configure['num_of_iteration'] = 6 # currently fixed number of iteration. manually change
+    configure['num_of_bspline_iteration'] = 3 # currently fixed 3
+    
+    configure['image_file'] = args.input_image # temp_folder + image_name
+    configure['_lambda'] = args._lambda # parameter, usually _lambda
+    configure['gamma'] = args.gamma # parameter, usually gamma
+    configure['num_of_correction'] = args.num_of_correction # number of correction steps performed
+    configure['platform'] = args.platform
+    configure['start_iteration'] = 1
+    configure['verbose'] = args.verbose
+    configure['debug'] = args.debug
 
-    print 'Starting pre-processing'   
-    preprocessing(args)
-    print 'Starting Decomposition/Registration'
-    main(args)
-    print 'Starting post-processing'
-    postprocessing(args)
+    root_folder = os.path.join(sys.path[0], '..')
+    result_folder = root_folder + '/tmp_res' + '/temp_' + os.path.basename(configure['image_file']).split('.')[0]
+    
+    data_folder = os.path.join(root_folder, 'data')
+    atlas_folder = os.path.join(data_folder, 'atlas')
+    pca_folder = os.path.join(data_folder, 'pca')    
+    data_folder_basis = pca_folder + '/pca_' + str(configure['num_of_normal_used'])
 
+    atlas_w_skull_name = atlas_folder + '/atlas_w_skull.nii'
+    atlas_im_name = atlas_folder + '/atlas_wo_skull.nii'
+    atlas_map_name = atlas_folder + '/skull_map.nii'
+    atlas_mask_name = atlas_folder + '/atlas_mask.nii'
+    atlas_mask_dilate_name = atlas_folder + '/atlas_mask_dilate.nii'
+
+    configure['result_folder'] = result_folder
+    configure['data_folder_basis'] = data_folder_basis
+    configure['root_folder'] = root_folder
+    configure['atlas_w_skull_name'] = atlas_w_skull_name
+    configure['atlas_im_name'] = atlas_im_name
+    configure['atlas_map_name'] = atlas_map_name
+    configure['atlas_mask_name'] = atlas_mask_name
+    configure['atlas_mask_dilate_name'] = atlas_mask_dilate_name
+    return configure
+
+
+def ReadPCABasis(image_size, configure):
+    D = np.zeros((image_size, configure['num_of_pca_basis']), dtype=np.float32)
+    DT = np.zeros((configure['num_of_pca_basis'], image_size), dtype=np.float32)
+    if configure['verbose'] == True:
+        print 'Reading PCA Basis Images'
+    for i in range(configure['num_of_pca_basis']):
+        basis_file = configure['data_folder_basis'] + '/eigen_brains_warped/pca_warped_basis_' + str(i+1) + '.nii'
+        basis_img = sitk.ReadImage(basis_file)
+        basis_img_arr = sitk.GetArrayFromImage(basis_img)
+        D[:,i] = basis_img_arr.reshape(-1)
+        DT[i,:] = basis_img_arr.reshape(-1)
+    mean_img_file = configure['data_folder_basis'] + '/pca_warped_mean_' + str(configure['num_of_normal_used']) + '.nii'
+    D_mean = sitk.GetArrayFromImage(sitk.ReadImage(mean_img_file)).astype(np.float32)
+    return D, DT, D_mean
+
+
+def performIteration(configure, D_Basis, D_BasisT, D_mean, image_size):
+    current_folder = configure['result_folder']
+    start_iteration = configure['start_iteration']
+    
+    inputIm = configure['result_folder'] + '/match_output.nii.gz'
+    outputIm = current_folder + '/Iter1' + '_Input.nii.gz'
+    
+    os.system('cp ' + inputIm + ' ' + outputIm)
+     
+    for it in range(configure['num_of_iteration']):
+        current_iter = it + 1
+        if current_iter < start_iteration:
+            continue
+        print 'run iteration ' + str(current_iter)
+        if current_iter == 1:
+            # first iteration, in original space
+            performDecomposition(1, current_folder, D_Basis, D_BasisT, D_mean, image_size,configure) 
+        else:
+            if configure['num_of_iteration'] - current_iter > configure['num_of_bspline_iteration'] - 1:
+                # only perform affine registration
+                performRegistration(current_iter, current_folder, configure, registration_type = 'affine')
+                performDecomposition(current_iter, current_folder, D_Basis, D_BasisT, D_mean, image_size, configure)
+            else:
+                performRegistration(current_iter, current_folder, configure, registration_type = 'bspline')
+                performDecomposition(current_iter, current_folder, D_Basis, D_BasisT, D_mean, image_size, configure)
+                performInverse(current_iter, current_folder, configure)
+            InverseToIterFirst(current_iter, current_folder, configure)   
+    createCompDisp(current_folder, configure) 
+    if configure['debug'] != 2:
+        clearUncessaryFiles(current_folder, configure)
+ 
+    return
+
+def createCompDisp(current_folder, configure):
+    atlas_im_name = configure['atlas_im_name']
+    
+    current_comp_disp = current_folder + '/Iter6_DVF_61.nii'
+    temp_image = current_folder + '/temp_image.nii.gz'
+    affine_txt = current_folder + '/affine_trans.txt'
+    affine_def = current_folder + '/affine_DEF.nii'
+    affine_disp = current_folder + '/affine_DVF.nii'
+    final_disp = current_folder + '/final_DVF.nii'
+    final_inv_disp = current_folder + '/final_inv_DVF.nii'
+ 
+    cmd = ""
+    cmd += '\n' + nifty_reg_transform(ref=atlas_im_name,def1=affine_txt, def2=affine_def)
+    cmd += '\n' + nifty_reg_transform(ref=atlas_im_name,disp1=affine_def, disp2=affine_disp)
+    cmd += '\n' + nifty_reg_transform(ref=atlas_im_name, ref2=atlas_im_name, comp1=current_comp_disp, comp2=affine_disp, comp3=final_disp)
+    cmd += '\n' + nifty_reg_transform(ref=atlas_im_name, invNrr1=final_disp, invNrr2=temp_image, invNrr3=final_inv_disp)
+    logFile = open(current_folder + '/final.log', 'w')
+    process = subprocess.Popen(cmd, stdout= logFile, shell = True)
+    process.wait()
+    logFile.close()
+
+
+
+def clearUncessaryFiles(current_folder, configure):
+    deformations = current_folder + '/Iter*.nii'
+    affines = current_folder + '/Iter*.txt'
+    logs = current_folder + '/Iter*.log'
+    tmp_out = current_folder + '/tmp_out.nii'
+    invIter3 = current_folder + '/*InvWarpedIter3*'
+    os.system('rm ' + deformations)
+    os.system('rm ' + affines)
+##    os.system('rm ' + logs)
+    os.system('rm ' + invIter3)    
+
+
+
+def performInverse(current_iter, current_folder, configure):
+    prefix = current_folder + '/Iter' + str(current_iter)
+    atlas_im_name = configure['atlas_im_name']
+    invWarpedLowRankIm = prefix + '_InvWarpedIter3LowRank.nii.gz'
+    lowRankIm = prefix + '_LowRank.nii.gz'
+    lowRankSIm = prefix + '_LowRankS.nii.gz'
+
+    cmd = ""
+    current_disp = prefix + '_DVF_'+str(current_iter)+'3.nii'
+    current_inv_disp =  prefix + '_InvDVF_' + str(current_iter) + '3.nii'
+    cmd += '\n' + nifty_reg_transform(ref=atlas_im_name, invNrr1=current_disp, invNrr2=lowRankIm , invNrr3=current_inv_disp)
+    cmd += '\n' + nifty_reg_resample(ref=atlas_im_name, flo=lowRankIm, trans=current_inv_disp, res=invWarpedLowRankIm)
+       
+    if configure['verbose'] == True:
+        print 'Non-greedy strategy, inversing to original space'
+        print cmd 
+    logFile = open(prefix + '_data2.log', 'w')
+    process = subprocess.Popen(cmd, stdout= logFile, shell = True)
+    process.wait()
+    logFile.close()
+
+
+def InverseToIterFirst(current_iter, current_folder, configure):
+    prefix = current_folder + '/Iter' + str(current_iter)
+    inverse_disp = prefix + '_inverseDVF_1'+str(current_iter) + '.nii'
+    atlas_mask_name = configure['atlas_mask_name']
+
+    lowRankIm = prefix + '_LowRank.nii.gz'
+    sparseIm = prefix + '_Sparse.nii.gz'
+    totalIm = prefix + '_TV.nii.gz'
+    lowrankTVIm = prefix + '_LowRankTV.nii.gz'
+    lowrankSIm = prefix + '_LowRankS.nii.gz'
+    
+    invLowRankIm = prefix + '_InvWarpedLowRank.nii.gz'
+    invSparseIm = prefix + '_InvWarpedSparse.nii.gz'
+    invTotalIm = prefix + '_InvTV.nii.gz'
+    invAtlasMaskIm = prefix + '_InvAtlasMask.nii.gz'
+    invLowRankTVIm = prefix + '_InvLowRankTV.nii.gz'
+    invLowRankSIm = prefix + '_InvLowRankS.nii.gz'
+ 
+    cmd = ""
+    cmd += '\n' + nifty_reg_resample(ref=configure['atlas_im_name'], flo=lowRankIm, trans = inverse_disp, res=invLowRankIm)
+    cmd += '\n' + nifty_reg_resample(ref=configure['atlas_im_name'], flo=sparseIm, trans = inverse_disp, res=invSparseIm)
+    cmd += '\n' + nifty_reg_resample(ref=configure['atlas_im_name'], flo=totalIm, trans = inverse_disp, res=invTotalIm)
+    cmd += '\n' + nifty_reg_resample(ref=configure['atlas_im_name'], flo=lowrankTVIm, trans = inverse_disp, res=invLowRankTVIm)
+    cmd += '\n' + nifty_reg_resample(ref=configure['atlas_im_name'], flo=lowrankSIm, trans = inverse_disp, res=invLowRankSIm)
+    cmd += '\n' + nifty_reg_resample(ref=configure['atlas_im_name'], flo=atlas_mask_name, trans=inverse_disp, res=invAtlasMaskIm)
+ 
+    num_of_iteration = configure['num_of_iteration']
+    if current_iter == num_of_iteration:
+        input_file = prefix + '_Input.nii.gz'
+        input_image = sitk.ReadImage(input_file)
+        input_mask = sitk.Greater(input_image, 0.001)
+        
+        not_input_mask = sitk.BinaryNot(input_mask)
+        con_img = sitk.ConnectedComponent(not_input_mask)
+        bin_label_img = sitk.GreaterEqual(con_img, 2)
+        new_mask_img = sitk.Or(bin_label_img, input_mask)
+
+        atlas_mask = sitk.ReadImage(atlas_mask_name)
+        final_mask = sitk.And(new_mask_img, atlas_mask)
+        mask_name = prefix + '_FinalMask.nii.gz'
+        sitk.WriteImage(final_mask, mask_name)
+        inv_mask_name = prefix + '_InvFinalMask.nii.gz'
+        cmd += '\n' + nifty_reg_resample(ref=configure['atlas_im_name'], flo=mask_name, trans=inverse_disp, res=inv_mask_name)
+    if configure['verbose'] == True:
+        print 'inversing to the first step'
+        print cmd 
+    logFile = open(prefix+ '_inverse_final_image' + '_data.log', 'w')
+    process = subprocess.Popen(cmd, stdout= logFile, shell = True)
+    process.wait()
+    logFile.close()
     return 
+ 
+ 
+def performRegistration(current_iter, current_folder, configure, registration_type = 'bspline'):
+    atlas_im_name = configure['atlas_im_name']
+    atlas_mask_name = configure['atlas_mask_name']
+    atlas_mask_dilate_name = configure['atlas_mask_dilate_name']
+    atlas_w_skull_name = configure['atlas_w_skull_name']
+    prefix = current_folder + '/' + 'Iter' + str(current_iter) 
+    new_input_image = prefix + '_Input.nii.gz'
+    current_input_image = current_folder + '/Iter' + str(current_iter-1) + '_Input.nii.gz'
+    initial_input_image= current_folder+'/Iter1_Input' + '.nii.gz'
+    tmp_out = current_folder + '/tmp_out.nii'
+    if configure['num_of_iteration'] - current_iter > configure['num_of_bspline_iteration'] - 2:
+        movingIm = current_folder + '/Iter' + str(current_iter-1) + '_LowRankS.nii.gz'
+        current_def = prefix + '_DEF_'+str(current_iter)+str(current_iter-1)+'.nii'
+        current_disp = prefix + '_DVF_'+str(current_iter)+str(current_iter-1)+'.nii'
+        rmask = atlas_mask_dilate_name
+    else:
+        movingIm = current_folder + '/Iter' + str(current_iter-1) + '_InvWarpedIter3LowRank.nii.gz'
+        current_def = prefix + '_DEF_'+str(current_iter)+'3.nii'
+        current_disp = prefix + '_DVF_'+str(current_iter)+'3.nii'
+        rmask = False
+    cmd  = ""
+    if registration_type == 'affine':
+        outputTransform = prefix + '_Transform.txt' 
+        cmd += '\n' + nifty_reg_affine(ref=atlas_im_name, flo=movingIm, aff=outputTransform, symmetric=False, res=tmp_out, rmask=rmask)
+    else:
+        outputTransform = prefix + '_Transform.nii'
+        cmd += '\n' + nifty_reg_bspline(ref=atlas_im_name, flo=movingIm, cpp=outputTransform, res=tmp_out, rmask=rmask)
+    cmd += '\n' + nifty_reg_transform(ref=atlas_im_name,def1=outputTransform, def2=current_def)
+    cmd += '\n' + nifty_reg_transform(ref=atlas_im_name,disp1=current_def, disp2=current_disp)
+    if current_iter > 2 and registration_type == 'affine':
+        prefix_prev = current_folder + '/Iter' + str(current_iter-1)
+        previous_comp_def =  prefix_prev + '_DEF_'+str(current_iter-1)+'1.nii'
+        current_comp_def = prefix + '_DEF_'+str(current_iter)+'1.nii'
+        current_comp_disp = prefix + '_DVF_'+str(current_iter)+'1.nii'
+        cmd += '\n' + nifty_reg_transform(ref=current_input_image, ref2=initial_input_image, comp1=current_def, comp2=previous_comp_def, comp3=current_comp_def)
+    elif current_iter > 2 and registration_type == 'bspline':
+        prefix_prev = current_folder + '/Iter3'
+        previous_comp_def =  prefix_prev + '_DEF_31.nii'
+        current_comp_def = prefix + '_DEF_'+str(current_iter)+'1.nii'
+        current_comp_disp = prefix + '_DVF_'+str(current_iter)+'1.nii'
+        cmd += '\n' + nifty_reg_transform(ref=current_input_image, ref2=initial_input_image, comp1=current_def, comp2=previous_comp_def, comp3=current_comp_def)
+        
+    else:
+        current_comp_def = current_def
+        current_comp_disp = current_disp
+    cmd += '\n' + nifty_reg_transform(ref=atlas_im_name,disp1=current_comp_def,disp2=current_comp_disp)
+    inverse_disp = prefix + '_inverseDVF_1'+str(current_iter)+'.nii'
+    cmd += '\n' + nifty_reg_transform(ref=atlas_im_name, invNrr1=current_comp_disp, invNrr2=initial_input_image, invNrr3=inverse_disp)
+    cmd += '\n' + nifty_reg_resample(ref=atlas_im_name,flo=initial_input_image,trans=current_comp_def,res=new_input_image)
+    print 'performing registration'
+    if configure['verbose'] == True:
+        print cmd
+    logFile = open(prefix + '_data.log', 'w')
+    process = subprocess.Popen(cmd, stdout= logFile, shell = True)
+    process.wait()
+    logFile.close()
+    return 
+             
 
+        
+def performDecomposition(current_iter, current_folder, Beta, BetaT, D_mean, image_size, configure):
+    num_of_iteration = configure['num_of_iteration']
+    num_of_bspline_iter = configure['num_of_bspline_iteration']
+
+    _lambda = configure['_lambda']
+    _gamma = configure['gamma']
+    atlas_im_name = configure['atlas_im_name']
+    atlas_map = sitk.GetArrayFromImage(sitk.ReadImage(configure['atlas_map_name'])).astype(np.float32)
+    correction = configure['num_of_correction']
+    
+    input_name = current_folder + '/' + 'Iter' + str(current_iter) + '_Input.nii.gz'
+    D = sitk.GetArrayFromImage(sitk.ReadImage(input_name)).astype(np.float32)
+    if current_iter <= num_of_iteration - 1 and correction != 0:
+        if configure['platform'] == 'CPU':
+            L, S, T, Alpha = pca_CPU(D, D_mean, atlas_map, Beta, _lambda, _gamma/2, 0, configure['verbose'])
+        else:
+            L, S, T, Alpha = pca_GPU(D, D_mean, atlas_map, Beta, BetaT, _lambda, _gamma/2, 0, configure['verbose'])
+    else:
+        if configure['platform'] == 'CPU':
+            L, S, T, Alpha = pca_CPU(D, D_mean, atlas_map, Beta, _lambda, _gamma, correction, configure['verbose'])
+        else:
+            L, S, T, Alpha = pca_GPU(D, D_mean, atlas_map, Beta, BetaT, _lambda, _gamma, correction, configure['verbose'])
+ 
+
+    l_v = L.reshape(image_size, 1) # quasi low-rank/reconstruction
+    s_v = S.reshape(image_size, 1) # sparse
+    t_v = T.reshape(image_size, 1) # total variation term
+    lt_v = l_v + t_v
+    ls_v = l_v + s_v
+
+    prefix = current_folder + '/' + 'Iter' + str(current_iter)
+ 
+    lowRankIm = prefix + '_LowRank.nii.gz'
+    sparseIm = prefix + '_Sparse.nii.gz'
+    totalIm = prefix + '_TV.nii.gz'
+    lowrankTVIm = prefix + '_LowRankTV.nii.gz'
+    lowrankSIm = prefix + '_LowRankS.nii.gz'
+
+    save_image_from_data_matrix(l_v,atlas_im_name,lowRankIm)
+    save_image_from_data_matrix(s_v,atlas_im_name,sparseIm)
+    save_image_from_data_matrix(t_v,atlas_im_name,totalIm)
+    save_image_from_data_matrix(lt_v, atlas_im_name, lowrankTVIm)
+    save_image_from_data_matrix(ls_v, atlas_im_name, lowrankSIm)
+
+    return
+
+
+def main(args):
+    configure = performInitialization(args)
+    atlas_map = sitk.GetArrayFromImage(sitk.ReadImage(configure['atlas_map_name']))
+    atlas_arr = sitk.GetArrayFromImage(sitk.ReadImage(configure['atlas_im_name']))
+    z,x,y = atlas_arr.shape
+    image_size = x*y*z
+
+    D_Basis, D_BasisT, D_mean = ReadPCABasis(image_size, configure)
+    performIteration(configure, D_Basis, D_BasisT, D_mean, image_size)
 
 if __name__ == '__main__':
-    if args.debug == 2:
-        msg = 'You are using ultra debugging mode. All intermediate results will be saved on disk. This could occupy large space on disk if multiple images will be processed. Consider use -d 1.'
-        warnings.warn(message=msg, category=Warning)
-
-    args.platform = args.platform.upper()
-
-    args.mask_image = None
-    args.output_image = None 
-    if args.input_image is not None:
-        if args.mask == None and args.output == None:
-            msg = 'No output image and mask image specified. Output images will be stored in image folder'
-            warnings.warn(message=msg, category=Warning)
-
-            input_image = args.input_image   #/path/to/image/image_name.extension
-	    dir_name = os.path.dirname(input_image) #/path/to/image/
-            base_name = os.path.basename(input_image) #image_name.extension
-            image_name = base_name.split('.')[0] #image_name
-            extension = '.'.join(base_name.split('.')[1:]) #extension
-
-            mask_name = image_name + '_mask' + '.' + extension 
-            args.mask_image = os.path.join(dir_name, mask_name) #/path/to/image/image_name_mask.extension
-            output_name = image_name + '_extracted' + '.' + extension
-            args.output_image = os.path.join(dir_name, output_name) #/path/to/image/image_name_extracted.extension
+    args = Namespace(input_image=sys.argv[1], _lambda=float(sys.argv[2]), gamma=float(sys.argv[3]), num_of_correction=int(sys.argv[4]), platform=sys.argv[5], debug=1, verbose=True)
+    main(args)
  
-        else:
-            if args.mask is not None:
-                args.mask_image = args.mask
-            if args.output is not None:
-                args.output_image = args.output
-        print args
-        brain_extraction(args) 
-    
-    if args.input_folder is not None:
-        input_folder = args.input_folder
-        
-        
-        if args.mask == None and args.output == None:
-            msg = 'No output folder and mask folder specified. Output images will be stored in input image folder';
-            warnings. warn(message=msg, category=Warning)
-            mask_folder = input_folder
-            output_folder = input_folder
-        else:
-            if args.mask is not None:
-                mask_folder = args.mask
-                if not os.path.isdir(mask_folder):
-                    os.makedirs(mask_folder)
-            if args.output is not None:
-                output_folder = args.output
-                if not os.path.isdir(output_folder):
-                    os.makedirs(output_folder)
-        for input_image in os.listdir(input_folder):
-            base_name = os.path.basename(input_image)
-            image_name = base_name.split('.')[0] #image_name
-            extension = '.'.join(base_name.split('.')[1:]) #extension
-            
-            if not extension in support_extensions:
-                msg = "Skip file " + input_image + " This file format is not supported." 
-                warnings.warn(message=msg, category=Warning)
-                continue
-            args.input_image = os.path.join(input_folder, input_image)
-            mask_name = image_name + '_mask' + '.' + extension
-            output_name = image_name + '_extracted' + '.' + extension
-            
-            if 'mask_folder' in locals():
-                args.mask_image = os.path.join(mask_folder, mask_name)
-            if 'output_folder' in locals():
-                args.output_image = os.path.join(output_folder, output_name)
-            print args
-            brain_extraction(args)
+

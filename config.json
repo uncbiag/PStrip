@@ -1,5 +1,28 @@
 {
-    "nifty":{
+    "DEFAULT":{
+        "num_of_bspline_iterations": 3,
+        "num_of_iterations" : 6
+    },
+
+    "NIFTYREG":{
         "bin":"/niftyreg-git/install/bin"
+    },
+    "PCA":{
+        "num_of_normal" : 100,
+        "num_of_basis" : 5,
+        "pca_folder" : "data/pca/pca_100",
+        "pca_mean" : "data/pca/pca_100/pca_warped_mean_100.nii",
+        "pca_basis_folder" : "data/pca/pca_100/eigen_brains_warped",
+        "pca_basis_prefix" : "pca_warped_basis_",
+        "pca_basis_extension" : ".nii"
+    },
+    "ATLAS":{
+        "atlas_folder" : "data/atlas",
+        "atlas_w_skull" : "data/atlas/atlas_w_skull.nii",
+        "atlas_wo_skull" : "data/atlas/atlas_wo_skull.nii",
+        "atlas_mask" : "data/atlas/atlas_mask.nii",
+        "atlas_erode_mask" : "data/atlas/atlas_mask_erode.nii",
+        "atlas_dilate_mask" : "data/atlas/atlas_mask_dilate.nii",
+        "atlas_map" : "data/atlas/atlas_map.nii"
     }
 }
