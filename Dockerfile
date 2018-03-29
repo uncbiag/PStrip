@@ -77,5 +77,7 @@ RUN wget https://github.com/uncbiag/PStrip/releases/download/v1.0.0-alpha/data.z
     rm data.zip
 
 WORKDIR /
-RUN mkdir input
+RUN mkdir input; \
+    mkdir output
+
 

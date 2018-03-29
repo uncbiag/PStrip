@@ -15,15 +15,21 @@ We also include a sample PCA basis images as well as atlases. You can download t
 ### 1. Use docker wrapper
 The following script can be used, for example:
 ```
-nvidia-docker run -i --rm=false -v=your_image_folder:/input:rw -t xhs400/pstrip:latest python /PStrip/main_code/pstrip.py -i /input/your_image_name
+nvidia-docker run -i --rm -v=your_image_folder:/input:rw -t xhs400/pstrip:latest python /PStrip/main_code/pstrip.py -i /input/your_image_name
 ```
 ```
-docker run -i --rm=false -v=your_image_folder:/input:rw -t xhs400/pstrip:latest python /PStrip/main_code/pstrip.py -i /input/your_image_name -p CPU
+docker run -i --rm -v=your_image_folder:/input:rw -t xhs400/pstrip:latest python /PStrip/main_code/pstrip.py -i /input/your_image_name -p CPU
+```
+```
+nvidia-docker run -i --rm -v=your_image_folder:/input:rw -t xhs400/pstrip:latest python /PStrip/main_code/pstrip.py -f /input
+```
+```
+docker run -i --rm -v=your_image_folder:/input:rw -t xhs400/pstrip:latest python /PStrip/main_code/pstrip.py -f /input -p CPU
 ```
 What the above script does are following:  
 1. Pull the docker repository. (https://hub.docker.com/r/xhs400/pstrip/)  
 2. Initiate a docker container. (Mount the image\_folder to '/input').
-3. Run the python pstrip.py code: perform brain extraction on the input image and the results will be saved in the same folder.    
+3. Run the python pstrip.py code: the first two perform brain extraction on the input image and the results will be saved in the same folder, using GPU and CPU respectively; the last two perform brain extraction on all images inside the input folder and the results will be saved in the same folder, using GPU and CPU respectively
 
 For all options for pstrip.py please go to main\_code folder, or you can run   
 ```
