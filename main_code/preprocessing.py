@@ -54,7 +54,7 @@ def affine_to_atlas(atlas_wo_skull_file, atlas_w_skull_file, atlas_mask_file, te
     log.close()
 
     
-    remove_nan(affine_file2) 
+    #remove_nan(affine_file2) 
 
 
 def bias_correction(atlas_erode_mask_file, temp_folder):

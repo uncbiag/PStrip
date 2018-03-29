@@ -61,7 +61,6 @@ if (args.input_image and args.input_folder):
 
 
 def brain_extraction(args):
-    return
     print 'Starting pre-processing'   
     preprocessing(args)
     print 'Starting Decomposition/Registration'
