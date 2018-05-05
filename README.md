@@ -3,7 +3,7 @@ This repository contains the code for the following paper: (https://arxiv.org/ab
 ```
 @misc{Han2017Brain,
     title        = {Brain Extraction from Normal and Pathological Images: A Joint PCA/Image-Reconstruction Approach},
-    author       = {X. Han and R. Kwitt and S. aylward and B. Menze and A. Asturias and P. Vespa and J. Van Horn and M. Niethammer},
+    author       = {X. Han and R. Kwitt and S. Aylward and S. Bakas and B. Menze and A. Asturias and P. Vespa and J. Van Horn and M. Niethammer},
     year         = {2017},
     howpublished = {arXiv:1711.05702}}
 ```
